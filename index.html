@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1D5BA8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ruta Justa">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Ruta Justa</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --papel:#F6F7F8; --superficie:#FFFFFF; --linea:#D9DDE1; --texto:#1E2226; --suave:#5D656D;
+  --azul:#1D5BA8; --amarillo:#F2C230; --verde:#2E8B57; --rojo:#B83A2E;
+  --nav:64px; color-scheme:light;
+}
+@media (prefers-color-scheme:dark){ :root{
+  --papel:#15181B; --superficie:#1E2226; --linea:#343A40; --texto:#ECEEF0; --suave:#A3ABB3;
+  --azul:#5B93E0; --verde:#4FB37E; --rojo:#E06C5F; color-scheme:dark;
+}}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{height:100%; margin:0}
+body{font-family:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif; font-size:16px; line-height:1.45;
+  background:var(--papel); color:var(--texto); overflow:hidden}
+.cond{font-family:"Barlow Semi Condensed","Arial Narrow",sans-serif}
+
+header.barra{position:fixed; top:0; left:0; right:0; z-index:1001; background:var(--azul); color:#fff;
+  padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px; border-bottom:3px solid var(--amarillo);
+  display:flex; align-items:center; gap:12px}
+header.barra h1{margin:0; font-size:22px; font-weight:700; line-height:1}
+#chip-coche{margin-left:auto; background:rgba(255,255,255,.16); color:#fff; border:0; border-radius:16px;
+  padding:6px 12px; font:inherit; font-size:14px; max-width:60%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+
+.vista{position:fixed; left:0; right:0; top:calc(env(safe-area-inset-top,0px) + 55px);
+  bottom:calc(var(--nav) + env(safe-area-inset-bottom,0px)); overflow-y:auto; -webkit-overflow-scrolling:touch}
+.vista[hidden]{display:none}
+.hoja{max-width:560px; margin:0 auto; padding:16px}
+h2{font-size:19px; font-weight:600; margin:22px 0 10px}
+h2:first-child{margin-top:4px}
+label{display:block; font-size:14px; color:var(--suave); margin:12px 0 5px}
+input,select{width:100%; font:inherit; font-size:16px; color:var(--texto); background:var(--superficie);
+  border:1px solid var(--linea); border-radius:8px; padding:11px 12px}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--azul); outline-offset:2px}
+button{font:inherit; cursor:pointer; color:var(--texto); background:var(--superficie); border:1px solid var(--linea); border-radius:8px; padding:10px 14px}
+button.principal{width:100%; background:var(--azul); border-color:var(--azul); color:#fff; font-family:"Barlow Semi Condensed",sans-serif; font-weight:600; font-size:18px; padding:13px; margin-top:14px}
+.fila{display:flex; gap:10px} .fila>*{flex:1; min-width:0}
+.nota{font-size:13px; color:var(--suave); margin:8px 0 0}
+
+/* Calculadora */
+.km-grande{display:flex; align-items:baseline; gap:8px; background:var(--superficie); border:1px solid var(--linea); border-radius:12px; padding:6px 16px}
+.km-grande input{border:0; padding:6px 0; font-family:"Barlow Semi Condensed",sans-serif; font-weight:700; font-size:44px; background:transparent}
+.km-grande span{font-size:20px; color:var(--suave)}
+.segmentos{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px}
+.segmentos button{padding:10px 4px; font-size:14px}
+.segmentos button[aria-pressed="true"]{background:var(--azul); border-color:var(--azul); color:#fff}
+.ticket{margin-top:18px; background:var(--superficie); border:1px solid var(--linea); border-radius:12px; overflow:hidden}
+.ticket .total{padding:16px; border-bottom:2px dashed var(--linea)}
+.ticket .total .cond{font-size:52px; font-weight:700; line-height:1}
+.ticket .total p{margin:4px 0 0; color:var(--suave)}
+.ticket dl{margin:0; padding:8px 16px 14px; display:grid; grid-template-columns:1fr auto; row-gap:8px}
+.ticket dt{color:var(--suave)} .ticket dd{margin:0; font-weight:600; text-align:right}
+
+/* Coches */
+.resultados{list-style:none; margin:6px 0 0; padding:0; background:var(--superficie); border:1px solid var(--linea); border-radius:8px}
+.resultados:empty{display:none}
+.resultados li{padding:10px 12px; border-bottom:1px solid var(--linea); cursor:pointer}
+.resultados li:last-child{border-bottom:0}
+.resultados small,.garaje small{display:block; color:var(--suave); font-size:13px}
+.garaje{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px}
+.garaje li{display:flex; align-items:center; gap:10px; background:var(--superficie); border:1px solid var(--linea); border-radius:10px; padding:10px 12px}
+.garaje li.activo{border-color:var(--azul); box-shadow:0 0 0 1px var(--azul)}
+.garaje .info{flex:1; min-width:0}
+.garaje button{padding:6px 10px; font-size:14px}
+.vacio{color:var(--suave); background:var(--superficie); border:1px dashed var(--linea); border-radius:10px; padding:14px}
+.precios{display:grid; grid-template-columns:1fr 1fr; gap:0 10px}
+
+/* Ruta */
+#v-ruta{overflow:hidden}
+#map{position:absolute; inset:0}
+.buscador{position:absolute; z-index:1000; top:10px; left:10px; right:10px; background:var(--superficie); border-radius:12px; box-shadow:0 4px 16px rgba(0,0,0,.2); padding:8px}
+.buscador .campo{position:relative}
+.buscador input{border:0; border-bottom:1px solid var(--linea); border-radius:0; padding:9px 8px 9px 34px}
+.buscador .campo:last-of-type input{border-bottom:0}
+.buscador .campo::before{content:""; position:absolute; left:12px; top:50%; width:10px; height:10px; margin-top:-5px; border-radius:50%}
+.buscador .campo.a::before{background:var(--verde)} .buscador .campo.b::before{background:var(--rojo)}
+.buscador .acciones{display:flex; gap:6px; margin-top:6px} .buscador .acciones button{flex:1; font-size:14px; padding:8px}
+.sugerencias{position:absolute; z-index:5; left:0; right:0; top:100%; list-style:none; margin:0; padding:0; background:var(--superficie); border:1px solid var(--linea); border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.2); max-height:220px; overflow-y:auto}
+.sugerencias:empty{display:none}
+.sugerencias li{padding:10px 12px; font-size:15px; border-bottom:1px solid var(--linea)}
+.panel-rutas{position:absolute; z-index:1000; left:0; right:0; bottom:0; max-height:52%; overflow-y:auto; background:var(--superficie);
+  border-radius:16px 16px 0 0; box-shadow:0 -4px 16px rgba(0,0,0,.2); padding:8px 14px 14px}
+.panel-rutas:empty{display:none}
+.asa{width:40px; height:4px; border-radius:2px; background:var(--linea); margin:0 auto 8px}
+.estado{font-size:14px; color:var(--suave); margin:4px 0 8px} .estado.error{color:var(--rojo)}
+.ruta{display:block; width:100%; text-align:left; position:relative; padding:10px 12px 10px 16px; margin-bottom:8px; border-radius:10px}
+.ruta::before{content:""; position:absolute; left:0; top:10px; bottom:10px; width:5px; border-radius:0 3px 3px 0; background:var(--c)}
+.ruta[aria-pressed="true"]{border-color:var(--c); box-shadow:0 0 0 1px var(--c)}
+.ruta .via{font-size:13px; color:var(--suave); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.ruta .cifras{display:flex; align-items:baseline; gap:10px}
+.ruta .tiempo{font-size:21px; font-weight:600} .ruta .km{color:var(--suave); font-size:14px}
+.ruta .coste{margin-left:auto; font-size:25px; font-weight:700}
+.barra-coste{display:flex; height:8px; border-radius:4px; overflow:hidden; background:var(--papel); margin:6px 0}
+.barra-coste .comb{background:var(--azul)} .barra-coste .peaje{background:var(--amarillo)}
+.desglose{font-size:13px; color:var(--suave); display:flex; gap:12px; flex-wrap:wrap}
+.etq{display:inline-block; font-size:12px; font-weight:600; padding:1px 8px; border-radius:10px; border:1px solid currentColor; margin:6px 4px 0 0}
+.etq.rapida{color:var(--azul)} .etq.barata{color:var(--verde)} .etq.libre{color:var(--suave)}
+.comparado{font-size:13px; margin-top:4px} .ahorro{color:var(--verde); font-weight:600} .extra{color:var(--rojo); font-weight:600}
+details.pasos summary{cursor:pointer; padding:8px 0; font-weight:600}
+details.pasos ol{list-style:none; margin:0; padding:0}
+details.pasos li{display:grid; grid-template-columns:24px 1fr auto; gap:8px; padding:8px 0; border-top:1px solid var(--linea); font-size:14px}
+.flecha{color:var(--azul); text-align:center} .dist{color:var(--suave); font-size:13px; white-space:nowrap}
+.pin{width:28px; height:28px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); display:grid; place-items:center; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.pin span{transform:rotate(45deg); color:#fff; font-weight:700; font-size:13px}
+.pin-a{background:#2E8B57} .pin-b{background:#B83A2E}
+.yo{width:18px; height:18px; border-radius:50%; background:#2F80ED; border:3px solid #fff; box-shadow:0 0 0 6px rgba(47,128,237,.25)}
+@media (prefers-color-scheme:dark){ .leaflet-tile{filter:brightness(.75) invert(1) contrast(.9) hue-rotate(200deg) saturate(.5)} }
+
+nav.pestanas{position:fixed; z-index:1001; left:0; right:0; bottom:0; display:grid; grid-template-columns:repeat(3,1fr);
+  background:var(--superficie); border-top:1px solid var(--linea); padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.pestanas button{border:0; border-radius:0; background:none; height:var(--nav); font-size:13px; color:var(--suave); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px}
+nav.pestanas svg{width:24px; height:24px}
+nav.pestanas button[aria-current="page"]{color:var(--azul); font-weight:600}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="barra">
+  <h1 class="cond">Ruta Justa</h1>
+  <button id="chip-coche" type="button">Elige tu coche</button>
+</header>
+
+<!-- Calculadora rápida -->
+<section class="vista" id="v-calc" aria-label="Calcular coste">
+  <div class="hoja">
+    <h2 class="cond">¿Cuánto me cuesta el viaje?</h2>
+    <label for="km">Distancia</label>
+    <div class="km-grande"><input id="km" type="number" inputmode="decimal" min="0" step="1" value="50"><span>km</span></div>
+    <label>Por dónde vas a ir</label>
+    <div class="segmentos" id="tipo-via">
+      <button type="button" data-mix="80,20,0">Ciudad</button>
+      <button type="button" data-mix="30,40,30" aria-pressed="true">Mixto</button>
+      <button type="button" data-mix="10,80,10">Carretera</button>
+      <button type="button" data-mix="10,15,75">Autovía</button>
+    </div>
+    <label for="km-peaje">Kilómetros de autopista de pago (opcional)</label>
+    <input id="km-peaje" type="number" inputmode="decimal" min="0" value="0">
+    <div class="ticket" id="ticket"></div>
+    <p class="nota" id="nota-calc"></p>
+  </div>
+</section>
+
+<!-- Ruta en mapa -->
+<section class="vista" id="v-ruta" aria-label="Ruta" hidden>
+  <div id="map"></div>
+  <div class="buscador">
+    <div class="campo a"><input id="origen" autocomplete="off" placeholder="Origen"><ul class="sugerencias" id="sug-origen"></ul></div>
+    <div class="campo b"><input id="destino" autocomplete="off" placeholder="Destino"><ul class="sugerencias" id="sug-destino"></ul></div>
+    <div class="acciones">
+      <button type="button" id="btn-ubicacion">Mi ubicación</button>
+      <button type="button" id="btn-intercambiar">Intercambiar</button>
+      <button type="button" id="btn-seguir">Seguirme</button>
+    </div>
+  </div>
+  <div class="panel-rutas" id="panel-rutas"></div>
+</section>
+
+<!-- Coches y ajustes -->
+<section class="vista" id="v-coches" aria-label="Mis coches" hidden>
+  <div class="hoja">
+    <h2 class="cond">Mis coches</h2>
+    <ul class="garaje" id="garaje"></ul>
+    <h2 class="cond">Añadir un coche</h2>
+    <label for="buscar-coche">Busca por marca y modelo</label>
+    <input id="buscar-coche" autocomplete="off" placeholder="Por ejemplo: seat leon diesel">
+    <ul class="resultados" id="res-coches"></ul>
+    <p class="nota" id="fuente-datos"></p>
+    <details style="margin-top:10px">
+      <summary>No encuentro mi coche</summary>
+      <div class="fila">
+        <div><label for="m-nombre">Nombre</label><input id="m-nombre" placeholder="Mi coche"></div>
+        <div><label for="m-tipo">Combustible</label>
+          <select id="m-tipo"><option value="gasolina">Gasolina</option><option value="diesel">Diésel</option><option value="hibrido">Híbrido</option><option value="glp">GLP</option><option value="electrico">Eléctrico</option></select></div>
+      </div>
+      <label for="m-cons">Consumo medio (l/100 km, o kWh/100 km si es eléctrico)</label>
+      <input id="m-cons" type="number" inputmode="decimal" step="0.1" min="0" placeholder="5,8">
+      <button type="button" class="principal" id="btn-manual">Añadir coche</button>
+    </details>
+
+    <h2 class="cond">Precios</h2>
+    <div class="precios">
+      <div><label for="p-gasolina">Gasolina (€/l)</label><input id="p-gasolina" type="number" inputmode="decimal" step="0.01"></div>
+      <div><label for="p-diesel">Diésel (€/l)</label><input id="p-diesel" type="number" inputmode="decimal" step="0.01"></div>
+      <div><label for="p-glp">GLP (€/l)</label><input id="p-glp" type="number" inputmode="decimal" step="0.01"></div>
+      <div><label for="p-electrico">Electricidad (€/kWh)</label><input id="p-electrico" type="number" inputmode="decimal" step="0.01"></div>
+      <div><label for="p-peaje">Peaje medio (€/km)</label><input id="p-peaje" type="number" inputmode="decimal" step="0.01"></div>
+      <div><label for="estilo">Forma de conducir</label>
+        <select id="estilo"><option value="0.93">Tranquila</option><option value="1">Normal</option><option value="1.12">Rápida</option></select></div>
+    </div>
+    <label style="display:flex; gap:10px; align-items:center; color:var(--texto)">
+      <input type="checkbox" id="real" style="width:auto"> Ajustar al consumo real (el homologado suele quedarse corto)
+    </label>
+  </div>
+</section>
+
+<nav class="pestanas" aria-label="Secciones">
+  <button type="button" data-vista="v-calc" aria-current="page">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h2M16 11h0M8 15h2M12 15h2M8 18h8"/></svg>Calcular</button>
+  <button type="button" data-vista="v-ruta">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg>Ruta</button>
+  <button type="button" data-vista="v-coches">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 16V11l2-5h10l2 5v5M3 16h18v3H3zM7 19v1M17 19v1"/><circle cx="7.5" cy="13.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/></svg>Mis coches</button>
+</nav>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
