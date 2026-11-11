@@ -224,7 +224,9 @@ async function calcularRutas(){
   const {o,d}=R; if(!o||!d) return;
   estadoRuta("Calculando rutas…");
   const base=`https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=full&geometries=geojson&steps=true`;
-  const res=await Promise.allSettled([getJSON(base+"&alternatives=3"), getJSON(base+"&exclude=toll")]);
+  // El servidor público de OSRM no permite excluir peajes: la ruta sin peajes se pide a Valhalla (formato compatible con OSRM)
+  const sinPeajes={locations:[{lat:o.lat,lon:o.lng},{lat:d.lat,lon:d.lng}], costing:"auto", costing_options:{auto:{use_tolls:0}}, format:"osrm", shape_format:"geojson", language:"es-ES"};
+  const res=await Promise.allSettled([getJSON(base+"&alternatives=3"), getJSON("https://valhalla1.openstreetmap.de/route?json="+encodeURIComponent(JSON.stringify(sinPeajes)))]);
   let lista=[]; res.forEach(r=>{ if(r.status==="fulfilled"&&r.value.code==="Ok") lista.push(...r.value.routes); });
   const vistos=new Set();
   lista=lista.filter(r=>{ const k=Math.round(r.distance/1000)+"-"+Math.round(r.duration/120); return vistos.has(k)?false:vistos.add(k); });

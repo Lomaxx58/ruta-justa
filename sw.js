@@ -1,5 +1,5 @@
 // Guarda la app para que abra al instante y funcione la calculadora sin conexión.
-const CACHE = "ruta-justa-v2";
+const CACHE = "ruta-justa-v3";
 const APP = ["./", "index.html", "app.js", "coches.json", "manifest.webmanifest", "icon-192.png", "icon-512.png",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"];
