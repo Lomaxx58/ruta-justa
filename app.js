@@ -148,7 +148,7 @@ const R = {o:null, d:null, raw:[], rutas:[], sel:0, capas:[], marcas:{}, seguir:
 function iniciarMapa(){
   mapaListo=true;
   map=L.map("map",{zoomControl:false}).setView([40.2,-3.7],6);
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19, attribution:'&copy; OpenStreetMap · OSRM'}).addTo(map);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19, attribution:'&copy; OpenStreetMap · Valhalla'}).addTo(map);
   map.on("click", async e=>{
     const {lat,lng}=e.latlng, cual=!R.o?"o":(!R.d?"d":"o");
     if(cual==="o" && R.d){ R.d=null; $("#destino").value=""; quitarMarca("d"); limpiarRutas(); }
@@ -220,18 +220,43 @@ function estadoRuta(txt,error=false){
 }
 function limpiarRutas(){ R.capas.forEach(l=>map.removeLayer(l)); R.capas=[]; R.raw=[]; R.rutas=[]; $("#panel-rutas").innerHTML=""; }
 
+const VALHALLA="https://valhalla1.openstreetmap.de";
+async function postJSON(url, cuerpo){ const r=await fetch(url,{method:"POST",body:JSON.stringify(cuerpo)}); if(!r.ok) throw new Error(r.status); return r.json(); }
+function decodificar(str, prec=6){ // polyline6 -> [[lng,lat],...]
+  const f=10**prec, out=[]; let i=0, lat=0, lng=0;
+  while(i<str.length){
+    for(const k of [0,1]){ let res=0, sh=0, b; do{ b=str.charCodeAt(i++)-63; res|=(b&31)<<sh; sh+=5; }while(b>=32); const d=(res&1)?~(res>>1):(res>>1); if(k===0) lat+=d; else lng+=d; }
+    out.push([lng/f, lat/f]);
+  }
+  return out;
+}
+// Km de peaje exactos: Valhalla dice qué tramos de la ruta son de pago
+async function peajesDe(ruta){
+  try{
+    const t=await postJSON(VALHALLA+"/trace_attributes",{encoded_polyline:ruta.poly, shape_match:"edge_walk", costing:"auto", filters:{attributes:["edge.toll","edge.length"], action:"include"}});
+    ruta.kmPeaje=(t.edges||[]).filter(e=>e.toll).reduce((a,e)=>a+e.length,0);
+  }catch{ /* si falla, se estima con los datos de la propia ruta */ }
+}
 async function calcularRutas(){
   const {o,d}=R; if(!o||!d) return;
   estadoRuta("Calculando rutas…");
-  const base=`https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=full&geometries=geojson&steps=true`;
-  // El servidor público de OSRM no permite excluir peajes: la ruta sin peajes se pide a Valhalla (formato compatible con OSRM)
-  const sinPeajes={locations:[{lat:o.lat,lon:o.lng},{lat:d.lat,lon:d.lng}], costing:"auto", costing_options:{auto:{use_tolls:0}}, format:"osrm", shape_format:"geojson", language:"es-ES"};
-  const res=await Promise.allSettled([getJSON(base+"&alternatives=3"), getJSON("https://valhalla1.openstreetmap.de/route?json="+encodeURIComponent(JSON.stringify(sinPeajes)))]);
+  const puntos=[{lat:o.lat,lon:o.lng},{lat:d.lat,lon:d.lng}];
+  const pedir=(peajes,alt)=>postJSON(VALHALLA+"/route",{locations:puntos, costing:"auto", costing_options:{auto:{use_tolls:peajes}}, alternates:alt, format:"osrm", language:"es-ES"});
+  const res=await Promise.allSettled([pedir(1,2), pedir(0,0)]);
   let lista=[]; res.forEach(r=>{ if(r.status==="fulfilled"&&r.value.code==="Ok") lista.push(...r.value.routes); });
+  lista.forEach(r=>{ if(typeof r.geometry==="string"){ r.poly=r.geometry; r.geometry={type:"LineString", coordinates:decodificar(r.poly)}; } });
+  if(!lista.length){ // plan B: servidor público de OSRM
+    try{
+      const j=await getJSON(`https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=full&geometries=geojson&steps=true&alternatives=3`);
+      if(j.code==="Ok") lista=j.routes;
+    }catch{}
+  }
   const vistos=new Set();
   lista=lista.filter(r=>{ const k=Math.round(r.distance/1000)+"-"+Math.round(r.duration/120); return vistos.has(k)?false:vistos.add(k); });
   if(!lista.length){ limpiarRutas(); return estadoRuta("No se encontró ninguna ruta por carretera entre esos puntos.",true); }
-  R.raw=lista.sort((a,b)=>a.duration-b.duration).slice(0,4); R.sel=0;
+  lista=lista.sort((a,b)=>a.duration-b.duration).slice(0,4);
+  await Promise.all(lista.filter(r=>r.poly).map(peajesDe));
+  R.raw=lista; R.sel=0;
   recalcularRutas(true);
 }
 function analizar(r, c){
@@ -242,6 +267,7 @@ function analizar(r, c){
     energia+=km*consumoA(v,p)/100;
     if(s.intersections?.some(i=>i.classes?.includes("toll"))) kmPeaje+=km;
   }
+  if(typeof r.kmPeaje==="number") kmPeaje=r.kmPeaje;
   const cComb=energia*precioDe(c.tipo), cPeaje=kmPeaje*ajustes.peaje;
   return {r, energia, kmPeaje, cComb, cPeaje, total:cComb+cPeaje, unidad:TIPOS[c.tipo].unidad};
 }
